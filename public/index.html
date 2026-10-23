@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f5f0">
+  <meta name="description" content="Your own little place to watch, talk, and feel closer. A private movie room for two, wherever you are.">
+  <title>Closer — a little place for two</title>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Closer home"><span class="brand-mark"><svg><use href="/icons.svg#heart"></use></svg></span>closer<span class="brand-dot">.</span></a>
+      <span class="header-note">a little place for two</span>
+      <button class="button button-quiet how-button" id="how-button"><svg><use href="/icons.svg#info"></use></svg><span>How it works</span></button>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="headline">
+        <div><p class="eyebrow"><span></span> LESS DISTANCE. MORE US.</p><h1 id="headline">Make tonight <em>together.</em></h1><p class="intro-copy">One movie. Two screens. A little closer, wherever you are.</p></div>
+        <div class="intro-note"><svg><use href="/icons.svg#sparkle"></use></svg><p>Different places.<br><span>Same butterflies.</span></p></div>
+      </section>
+
+      <section class="room-banner" aria-label="Private room">
+        <div class="room-banner-icon"><svg><use href="/icons.svg#link"></use></svg></div>
+        <div class="room-banner-copy"><h2 id="room-heading">Your date night starts here</h2><p id="room-description">Make a private room and send your person an invite.</p></div>
+        <div class="room-banner-actions" id="lobby-actions"><button class="button button-text" id="join-button">Join a room <svg><use href="/icons.svg#arrow"></use></svg></button><button class="button button-primary" id="create-button"><svg><use href="/icons.svg#plus"></use></svg>Create our room</button></div>
+        <div class="room-banner-actions" id="active-room-actions" hidden><button class="button button-text" id="leave-button">Leave</button><button class="button button-primary" id="invite-button"><svg><use href="/icons.svg#link"></use></svg>Invite your person</button></div>
+      </section>
+
+      <div class="workspace">
+        <section class="cinema" aria-label="Watch together">
+          <div class="section-heading"><h2><svg><use href="/icons.svg#film"></use></svg>The living room</h2><span class="status-pill" id="sync-status"><span></span>Just for you two</span></div>
+          <div class="video-stage" id="video-stage">
+            <video id="movie" playsinline preload="metadata" poster="/poster.svg" src="/media/together.mp4" aria-label="Shared movie"></video>
+            <span class="stage-tag"><span></span> A MOMENT, SHARED</span>
+            <div class="stage-story" id="stage-story"><span class="stage-kicker">A LITTLE DISTANCE CAN’T CHANGE THIS</span><h2>Same sky.<br>Same moment.</h2><p>Find your person in your own little universe.</p><button class="stage-play" id="stage-play"><span><svg><use href="/icons.svg#play"></use></svg></span>Play a little moment <small>0:24</small></button></div>
+            <button class="resume-button" id="resume-button" hidden><svg><use href="/icons.svg#play"></use></svg>Tap to join the moment</button>
+            <button class="mini-call" id="mini-call" aria-label="Go to video call controls" hidden><video id="mini-remote" autoplay muted playsinline aria-hidden="true"></video><span id="mini-partner-label">Your person</span></button>
+            <div class="floating-reactions" id="floating-reactions" aria-hidden="true"></div>
+            <div class="movie-controls" id="movie-controls"><button class="icon-button light-icon" id="play-button" aria-label="Play movie"><svg><use href="/icons.svg#play"></use></svg></button><span class="time-label" id="time-label">0:00 / 0:24</span><input id="seek" class="seek-range" type="range" min="0" max="24" step="0.1" value="0" aria-label="Movie position"><button class="icon-button light-icon" id="volume-button" aria-label="Mute movie"><svg><use href="/icons.svg#volume"></use></svg></button><button class="icon-button light-icon" id="fullscreen-button" aria-label="Enter fullscreen"><svg><use href="/icons.svg#expand"></use></svg></button></div>
+          </div>
+          <div class="now-playing"><div class="now-playing-icon"><svg><use href="/icons.svg#music"></use></svg></div><div class="now-playing-title"><span>ON YOUR SCREEN</span><h3 id="media-title">Our little universe</h3><p id="media-detail">An original ambient short · 24 seconds</p></div><button class="button button-outline" id="choose-video"><svg><use href="/icons.svg#plus"></use></svg>Choose a video</button></div>
+          <div class="reactions-row"><span>A little love, on screen</span><div><button class="reaction-button" data-reaction="heart" aria-label="Send a heart">❤️</button><button class="reaction-button" data-reaction="kiss" aria-label="Send a kiss">😘</button><button class="reaction-button" data-reaction="sparkle" aria-label="Send sparkles">✨</button><button class="reaction-button" data-reaction="clap" aria-label="Send applause">👏</button></div><span class="reaction-hint">go on, make them smile</span></div>
+          <div class="little-note"><svg><use href="/icons.svg#lock"></use></svg><p>A room for just two. No accounts, no crowded calls.<span> Only the people with your invitation can join.</span></p></div>
+        </section>
+
+        <aside class="together-panel" aria-label="Call and conversation">
+          <div class="panel-title"><div><h2>Better with you<span>♡</span></h2><p id="presence-description">Save a seat for your favorite person.</p></div><span class="people-count" id="people-count">0 / 2</span></div>
+          <div class="call-tiles">
+            <div class="call-tile self-tile"><video id="local-video" autoplay muted playsinline hidden aria-label="Your camera"></video><div class="avatar-scene" id="local-avatar"><span class="avatar-orb peach"></span><svg><use href="/icons.svg#sun"></use></svg></div><span class="tile-label" id="self-label">You</span><span class="tile-badge"><svg><use href="/icons.svg#heart"></use></svg></span></div>
+            <div class="call-tile partner-tile"><video id="remote-video" autoplay playsinline hidden aria-label="Your partner’s camera"></video><div class="avatar-scene" id="remote-avatar"><span class="avatar-orb lavender"></span><svg><use href="/icons.svg#moon"></use></svg></div><span class="tile-label" id="partner-label">Your person</span><span class="partner-wait" id="partner-wait">a seat for you</span></div>
+          </div>
+          <div class="call-controls"><button class="call-control" id="mic-button" aria-label="Turn microphone on" aria-pressed="false"><svg><use href="/icons.svg#mic-off"></use></svg></button><button class="call-control" id="camera-button" aria-label="Turn camera on" aria-pressed="false"><svg><use href="/icons.svg#camera-off"></use></svg></button><button class="call-control" id="screen-button" aria-label="Share screen" hidden><svg><use href="/icons.svg#screen"></use></svg></button><span class="call-caption" id="call-caption">Say hello, face to face</span></div>
+          <button class="button remote-sound" id="remote-sound" hidden>Tap to hear your person</button>
+          <div class="chat-heading"><h3>A little conversation</h3><svg><use href="/icons.svg#chat"></use></svg></div>
+          <div class="chat-log" id="chat-log" role="log" aria-label="Messages" aria-live="polite"><div class="chat-empty" id="chat-empty"><span>♡</span><p>The best part is who<br>you’re watching with.</p><small>Your messages will appear here.</small></div></div>
+          <form class="chat-form" id="chat-form"><label class="sr-only" for="chat-input">Message your person</label><input id="chat-input" type="text" maxlength="1000" autocomplete="off" placeholder="A sweet little something…" disabled><button type="submit" id="chat-send" aria-label="Send message" disabled><svg><use href="/icons.svg#send"></use></svg></button></form>
+          <p class="chat-footnote"><span></span> Here for this moment. Messages aren’t saved.</p>
+        </aside>
+      </div>
+
+      <footer><span class="footer-brand">closer.</span><span>Made for the moments in between.</span><span>Just us, from anywhere <svg><use href="/icons.svg#heart"></use></svg></span></footer>
+    </main>
+  </div>
+
+  <dialog id="room-dialog" aria-labelledby="room-dialog-title"><form id="room-form"><button class="dialog-close icon-button" type="button" data-close aria-label="Close"><svg><use href="/icons.svg#close"></use></svg></button><span class="dialog-symbol">♡</span><p class="eyebrow">A LITTLE PLACE FOR TWO</p><h2 id="room-dialog-title">Make room for <em>us.</em></h2><p class="dialog-copy" id="room-dialog-copy">A private invitation. Your favorite person. That’s all you need.</p><label for="name-input">What should we call you?</label><input id="name-input" placeholder="Your first name" maxlength="32" autocomplete="given-name" required><div id="join-code-field" hidden><label for="room-code-input">Room code or invitation link</label><input id="room-code-input" placeholder="Paste your invitation here" autocomplete="off" spellcheck="false"></div><p class="form-error" id="room-form-error" role="alert"></p><button class="button button-primary dialog-submit" id="room-submit" type="submit">Create our room <svg><use href="/icons.svg#arrow"></use></svg></button><p class="dialog-footnote">Private rooms last six hours. No signup needed.</p></form></dialog>
+
+  <dialog id="invite-dialog" aria-labelledby="invite-title"><button class="dialog-close icon-button" data-close aria-label="Close"><svg><use href="/icons.svg#close"></use></svg></button><span class="dialog-symbol">↗</span><p class="eyebrow">THE BEST SEAT IS NEXT TO YOU</p><h2 id="invite-title">Send a little <em>invite.</em></h2><p class="dialog-copy">Send this link to your person. They can join from their phone or computer.</p><div class="invite-code"><span>YOUR ROOM CODE</span><strong id="invite-code"></strong></div><div class="invite-link"><input id="invite-link" readonly aria-label="Private invitation link"><button class="icon-button" id="copy-link" aria-label="Copy invitation link"><svg><use href="/icons.svg#copy"></use></svg></button></div><button class="button button-primary dialog-submit" id="share-link"><svg><use href="/icons.svg#send"></use></svg>Share invitation</button><p class="dialog-footnote">Keep your invitation between the two of you.</p></dialog>
+
+  <dialog id="video-dialog" aria-labelledby="video-dialog-title"><button class="dialog-close icon-button" data-close aria-label="Close"><svg><use href="/icons.svg#close"></use></svg></button><span class="dialog-symbol">✧</span><p class="eyebrow">SET THE MOOD</p><h2 id="video-dialog-title">What’s on <em>tonight?</em></h2><p class="dialog-copy">Pick our little ambient short, or bring a video of your own.</p><button class="demo-choice" id="choose-demo"><img src="/poster.svg" alt="Two glowing planets sharing an orbit"><span><strong>Our little universe</strong><small>Original ambient short · 24 sec</small></span><svg><use href="/icons.svg#play"></use></svg></button><div class="or-divider"><span>or bring your own</span></div><form id="video-form"><label for="video-url">Direct video link</label><input id="video-url" type="url" placeholder="https://example.com/our-video.mp4" required><label for="video-name">A name for this moment <span>(optional)</span></label><input id="video-name" maxlength="80" placeholder="Our favorite memory"><p class="input-help">Use a direct HTTPS MP4 or WebM link. YouTube, Netflix, and other streaming service pages won’t play here.</p><p id="video-form-error" class="form-error" role="alert"></p><button class="button button-primary dialog-submit" type="submit">Watch this together <svg><use href="/icons.svg#arrow"></use></svg></button></form></dialog>
+
+  <dialog id="how-dialog" aria-labelledby="how-title"><button class="dialog-close icon-button" data-close aria-label="Close"><svg><use href="/icons.svg#close"></use></svg></button><span class="dialog-symbol">♡</span><p class="eyebrow">A DATE NIGHT, SIMPLIFIED</p><h2 id="how-title">Far apart.<br><em>Right here.</em></h2><ol class="how-steps"><li><span>01</span><div><h3>Make a little room.</h3><p>Create a private room, then send the invitation to your person.</p></div></li><li><span>02</span><div><h3>Find your moment.</h3><p>Try our short or add a direct video link. Play, pause, and seek stay in sync.</p></div></li><li><span>03</span><div><h3>Stay a little longer.</h3><p>Turn on your cameras, share a thought, send a heart. This time is yours.</p></div></li></ol><p class="input-help">Tap play on both phones once to allow playback. Use headphones for calls. Screen sharing appears on browsers that support it; phones can watch videos together using the player.</p><button class="button button-primary dialog-submit" data-close>Sounds like us <svg><use href="/icons.svg#heart"></use></svg></button></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

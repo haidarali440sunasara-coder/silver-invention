@@ -1,0 +1,15 @@
+# Deploy as one persistent web service: WebSockets and room state need one instance.
+services:
+  - type: web
+    name: closer-together
+    runtime: node
+    plan: free
+    numInstances: 1
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
