@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { resolve, sep, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
+import { normalizeMedia } from './public/media.js';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const ROOM_TTL = 6 * 60 * 60 * 1000;
@@ -40,10 +41,10 @@ export function createApp({ now = Date.now, publicOrigin = process.env.PUBLIC_OR
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self)');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' https: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' data:; media-src 'self' https: blob:; frame-src https:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
     let pathname;
     try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
     catch { return json(res, 400, { error: 'Invalid URL.' }); }
@@ -129,16 +130,14 @@ export function createApp({ now = Date.now, publicOrigin = process.env.PUBLIC_OR
         let media;
         if (message.kind === 'demo') media = { ...DEMO };
         else {
-          try {
-            const url = new URL(message.url);
-            if (url.protocol !== 'https:' || url.username || url.password || url.href.length > 2048) throw new Error();
-            media = { url: url.href, title: String(message.title || 'Our movie').trim().slice(0, 80) || 'Our movie', kind: 'url' };
-          } catch { return error(ws, 'invalid-media', 'Use a direct HTTPS link to a video file.'); }
+          try { media = normalizeMedia(message); }
+          catch (reason) { return error(ws, 'invalid-media', reason.message); }
         }
         room.media = media;
         room.playback = { paused: true, time: 0, updatedAt: now(), revision: room.playback.revision + 1 };
         broadcast(room, { type: 'media', media, playback: room.playback, serverTime: now(), from: client.id });
       } else if (message.type === 'playback') {
+        if (room.media.kind === 'website') return;
         if (typeof message.paused !== 'boolean' || !Number.isFinite(message.time) || message.time < 0 || message.time > 7 * 86400) return;
         room.playback = { paused: message.paused, time: message.time, updatedAt: now(), revision: room.playback.revision + 1 };
         broadcast(room, { type: 'playback', playback: room.playback, serverTime: now(), from: client.id });

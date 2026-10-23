@@ -103,7 +103,7 @@ test('solo demo, accessible dialogs, invalid invitations, and desktop layout', a
   await page.locator('#play-button').click();
   await page.locator('#choose-video').click();
   await page.locator('#video-url').fill('https://youtube.com/watch?v=test'); await page.locator('#video-form button[type=submit]').click();
-  await expect(page.locator('#video-form-error')).toContainText('direct video file');
+  await expect(page.locator('#video-form-error')).toContainText('specific YouTube video');
   await page.keyboard.press('Escape');
   await page.locator('#join-button').click(); await page.locator('#name-input').fill('Asha'); await page.locator('#room-code-input').fill('bad'); await page.locator('#room-submit').click();
   await expect(page.locator('#room-form-error')).toContainText('ten-character');

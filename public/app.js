@@ -1,9 +1,12 @@
+import { normalizeMedia } from './media.js';
+import { YouTubePlayer } from './youtube.js';
+
 const $ = id => document.getElementById(id);
 const movie = $('movie');
 const isPreview = document.documentElement.dataset.preview === 'true';
 const DEMO = { url: movie.getAttribute('src'), title: 'Our little universe', kind: 'demo' };
 const state = { ws: null, roomId: null, name: '', selfId: null, connected: false, participants: [], media: DEMO, playback: { paused: true, time: 0, updatedAt: Date.now(), revision: 0 }, clockOffset: 0, retries: 0, reconnectTimer: null, pc: null, remoteId: null, makingOffer: false, ignoreOffer: false, settingAnswer: false, pendingCandidates: [], localStream: new MediaStream(), screenStream: null, iceServers: [], remoteStream: new MediaStream(), formMode: 'create', pingTimer: null };
-let toastTimer, applySequence = 0;
+let toastTimer, reactionTimer, applySequence = 0, youtube = null;
 const icon = name => `<svg aria-hidden="true"><use href="/icons.svg#${name}"></use></svg>`;
 const send = payload => { if (state.connected && state.ws?.readyState === WebSocket.OPEN) { state.ws.send(JSON.stringify(payload)); return true; } return false; };
 const rememberName = value => { try { localStorage.setItem('closer-name', value); } catch {} };
@@ -155,7 +158,7 @@ async function connectRoom(roomId, name, reconnect = false) {
       clearInterval(state.pingTimer);
       closePeer();
       if (state.roomId) {
-        movie.pause(); updatePresence();
+        pauseCurrentMedia(); updatePresence();
         if (!fatal && state.retries < 5) {
           state.retries++;
           state.reconnectTimer = setTimeout(() => connectRoom(state.roomId, state.name, true).catch(error => {
@@ -174,8 +177,8 @@ function leaveRoom() {
   clearTimeout(state.reconnectTimer); clearInterval(state.pingTimer);
   state.roomId = null; state.connected = false; state.participants = []; state.selfId = null;
   if (state.ws) { state.ws.close(); state.ws = null; }
-  stopMedia(); closePeer(); movie.pause();
-  state.playback = { paused: true, time: movie.currentTime, updatedAt: Date.now(), revision: 0 };
+  stopMedia(); closePeer(); pauseCurrentMedia();
+  state.playback = { paused: true, time: currentPlayer()?.currentTime || 0, updatedAt: Date.now(), revision: 0 };
   $('resume-button').hidden = true;
   history.replaceState(null, '', location.pathname + location.search);
   clearChat(); updatePresence();
@@ -205,20 +208,74 @@ $('share-link').addEventListener('click', async () => {
 
 function updateMedia(media, playback) {
   state.media = media; state.playback = playback;
-  const target = new URL(media.url, document.baseURI).href;
-  if (movie.src !== target) { movie.src = media.url; movie.load(); }
+  const isYouTube = media.kind === 'youtube', isWebsite = media.kind === 'website';
+  const embedded = isYouTube || isWebsite;
+  youtube?.destroy(); youtube = null;
+  // Navigate directly between websites; an intermediate about:blank navigation
+  // can cancel the new frame load while the previous document is unloading.
+  if (!isWebsite) $('website-frame').removeAttribute('src');
+  movie.pause();
+  movie.hidden = embedded;
+  $('youtube-shell').hidden = !isYouTube;
+  $('website-frame').hidden = !isWebsite;
+  $('embed-info').hidden = !embedded;
+  $('embed-retry').hidden = true;
+  $('embed-status').textContent = '';
+  $('embed-reaction').hidden = true;
+  $('external-link').href = embedded ? media.url : '#';
+  $('external-link').textContent = isYouTube ? 'Open on YouTube ↗' : 'Open in browser ↗';
+  $('video-stage').classList.toggle('is-embedded', embedded);
+  $('video-stage').classList.toggle('is-website', isWebsite);
+  $('movie-controls').hidden = isWebsite;
+  $('resume-button').hidden = true;
+  document.querySelector('.stage-tag').hidden = embedded;
+  if (isYouTube) {
+    $('embed-status').textContent = 'Loading YouTube…';
+    youtube = new YouTubePlayer($('youtube-shell'), media, {
+      ready: () => {
+        $('embed-status').textContent = 'YouTube · Play, pause, and seek together. Each phone may need a tap on Play.';
+        $('embed-retry').hidden = true;
+        applyPlayback(); renderPlayer();
+      },
+      change: (paused, time) => {
+        if (state.roomId && !state.connected) { youtube?.pause(); return; }
+        if (paused !== state.playback.paused || Math.abs(time - expectedTime()) > 1.5) publishPlayback(paused, time);
+      },
+      blocked: () => { $('resume-button').hidden = false; },
+      error: message => { $('embed-status').textContent = message; $('embed-retry').hidden = false; },
+      render: renderPlayer
+    });
+  } else if (isWebsite) {
+    $('website-frame').src = media.url;
+    $('embed-status').textContent = 'Both phones open this address. Scrolling, clicks, and website videos stay separate. If the site blocks this view, use Open in browser.';
+  } else {
+    const target = new URL(media.url, document.baseURI).href;
+    if (movie.src !== target) { movie.src = media.url; movie.load(); }
+  }
   $('media-title').textContent = media.title;
-  $('media-detail').textContent = media.kind === 'demo' ? 'An original ambient short · 24 seconds' : 'Your shared video · play, pause, and seek together';
+  $('media-detail').textContent = media.kind === 'demo' ? 'An original ambient short · 24 seconds' : isWebsite ? 'Shared website address · browse independently' : isYouTube ? 'YouTube · shared playback controls' : 'Your shared video · play, pause, and seek together';
   $('stage-story').hidden = media.kind !== 'demo';
   if (playback.time === 0 && playback.paused) $('video-stage').classList.remove('has-started');
-  applyPlayback();
+  applyPlayback(); renderPlayer();
 }
+function currentPlayer() { return state.media.kind === 'youtube' ? youtube : state.media.kind === 'website' ? null : movie; }
+function pauseCurrentMedia() { movie.pause(); youtube?.pause(); }
+$('embed-retry').addEventListener('click', () => updateMedia(state.media, state.playback));
 function expectedTime() {
   const playback = state.playback;
   return Math.max(0, playback.time + (playback.paused ? 0 : Math.max(0, Date.now() + state.clockOffset - playback.updatedAt) / 1000));
 }
 async function applyPlayback() {
   const sequence = ++applySequence;
+  if (state.media.kind === 'website') return;
+  if (state.media.kind === 'youtube') {
+    if (!youtube?.ready) return;
+    const target = Math.min(expectedTime(), youtube.duration || Infinity);
+    if (Math.abs(youtube.currentTime - target) > .8) youtube.seek(target);
+    if (state.playback.paused) { if (!youtube.paused) youtube.pause(); $('resume-button').hidden = true; }
+    else if (youtube.paused && !youtube.blocked) youtube.play();
+    renderPlayer(); return;
+  }
   if (!movie.readyState) return;
   const target = Math.min(expectedTime(), Number.isFinite(movie.duration) ? movie.duration : Infinity);
   if (Math.abs(movie.currentTime - target) > .4) movie.currentTime = target;
@@ -237,6 +294,17 @@ function publishPlayback(paused, time) {
 }
 async function togglePlay() {
   if (state.roomId && !state.connected) { toast('Tap Reconnect to return to your room.'); return; }
+  if (state.media.kind === 'website') return;
+  if (state.media.kind === 'youtube') {
+    if (!youtube?.ready) { toast('Wait for YouTube to load, or try another video.'); return; }
+    if (youtube.paused) {
+      let time = youtube.currentTime;
+      if (youtube.duration && time >= youtube.duration - .2) { time = 0; youtube.seek(time); }
+      else if (state.connected && !state.playback.paused) { time = Math.min(expectedTime(), youtube.duration || Infinity); youtube.seek(time); }
+      youtube.play(); publishPlayback(false, time);
+    } else { const time = youtube.currentTime; youtube.pause(); publishPlayback(true, time); }
+    return;
+  }
   if (movie.error) { toast('This video couldn’t load. Try another direct video link.'); return; }
   if (movie.paused) {
     if (movie.ended) movie.currentTime = 0;
@@ -251,20 +319,39 @@ function formatTime(seconds) {
   return value >= 3600 ? `${Math.floor(value / 3600)}:${String(Math.floor(value / 60) % 60).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}` : `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
 }
 function renderPlayer() {
-  $('play-button').innerHTML = icon(movie.paused ? 'play' : 'pause');
-  $('play-button').setAttribute('aria-label', movie.paused ? 'Play movie' : 'Pause movie');
-  $('time-label').textContent = `${formatTime(movie.currentTime)} / ${formatTime(movie.duration)}`;
-  if (Number.isFinite(movie.duration)) { $('seek').max = movie.duration; $('seek').value = movie.currentTime; }
-  if (!movie.paused || movie.currentTime > .5) $('video-stage').classList.add('has-started');
+  const player = currentPlayer();
+  const loading = !player || (state.media.kind === 'youtube' && !youtube?.ready);
+  for (const id of ['play-button', 'volume-button', 'seek']) $(id).disabled = loading;
+  if (!player) return;
+  $('play-button').innerHTML = icon(player.paused ? 'play' : 'pause');
+  $('play-button').setAttribute('aria-label', player.paused ? 'Play movie' : 'Pause movie');
+  $('volume-button').innerHTML = icon(player.muted ? 'volume-off' : 'volume');
+  $('volume-button').setAttribute('aria-label', player.muted ? 'Unmute movie' : 'Mute movie');
+  $('time-label').textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
+  if (Number.isFinite(player.duration)) { $('seek').max = player.duration || 0; $('seek').value = player.currentTime; }
+  if (!player.paused || player.currentTime > .5) $('video-stage').classList.add('has-started');
+  if (!player.paused) $('resume-button').hidden = true;
 }
 $('play-button').addEventListener('click', togglePlay);
 $('stage-play').addEventListener('click', togglePlay);
 $('resume-button').addEventListener('click', async () => {
+  if (state.media.kind === 'youtube') {
+    if (youtube?.ready) {
+      youtube.seek(Math.min(expectedTime(), youtube.duration || Infinity));
+      youtube.play(); $('resume-button').hidden = true;
+    }
+    return;
+  }
   try { if (state.connected) movie.currentTime = Math.min(expectedTime(), movie.duration || Infinity); await movie.play(); $('resume-button').hidden = true; }
   catch { toast('Try choosing a different video. This one may not support your phone.'); }
 });
 $('seek').addEventListener('change', event => {
   if (state.roomId && !state.connected) { toast('Reconnect before changing the movie.'); return; }
+  if (state.media.kind === 'youtube') {
+    if (youtube?.ready) { const paused = youtube.paused, time = Number(event.target.value); youtube.seek(time); publishPlayback(paused, time); }
+    return;
+  }
+  if (state.media.kind === 'website') return;
   movie.currentTime = Number(event.target.value);
   publishPlayback(movie.paused, movie.currentTime);
 });
@@ -281,9 +368,10 @@ movie.addEventListener('play', () => { if (state.nativeFullscreen && state.playb
 movie.addEventListener('pause', () => { if (state.nativeFullscreen && !state.playback.paused && !movie.ended) publishPlayback(true, movie.currentTime); });
 movie.addEventListener('seeked', () => { if (state.nativeFullscreen && Math.abs(movie.currentTime - expectedTime()) > .8) publishPlayback(movie.paused, movie.currentTime); });
 movie.addEventListener('error', () => {
-  if (state.media.kind !== 'demo') toast('The video couldn’t load. Use a direct MP4 or WebM link that allows playback.');
+  if (state.media.kind === 'url') toast('The video couldn’t load. Use a direct MP4 or WebM link that allows playback.');
 });
 $('volume-button').addEventListener('click', () => {
+  if (state.media.kind === 'youtube') { if (youtube?.ready) youtube.mute(!youtube.muted); renderPlayer(); return; }
   movie.muted = !movie.muted;
   $('volume-button').innerHTML = icon(movie.muted ? 'volume-off' : 'volume');
   $('volume-button').setAttribute('aria-label', movie.muted ? 'Unmute movie' : 'Mute movie');
@@ -292,30 +380,37 @@ $('fullscreen-button').addEventListener('click', async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else if ($('video-stage').requestFullscreen) await $('video-stage').requestFullscreen();
-    else if (movie.webkitEnterFullscreen) movie.webkitEnterFullscreen();
+    else if (state.media.kind !== 'youtube' && movie.webkitEnterFullscreen) movie.webkitEnterFullscreen();
     else toast('Rotate your phone for a wider view.');
   } catch { toast('Rotate your phone for a wider view.'); }
 });
 setInterval(() => {
-  if (state.connected && !state.playback.paused && !movie.paused && movie.readyState >= 2 && Math.abs(movie.currentTime - expectedTime()) > 1.2) applyPlayback();
+  const player = currentPlayer();
+  if (state.connected && !state.playback.paused && player && !player.paused && Math.abs(player.currentTime - expectedTime()) > 1.5) applyPlayback();
 }, 4000);
 $('choose-video').addEventListener('click', () => { $('video-form-error').textContent = ''; openDialog('video-dialog'); });
 function selectVideo(media) {
+  if (isPreview && ['youtube', 'website'].includes(media.kind)) { toast('YouTube and websites need the live Closer website. Try the included short in this preview.'); return; }
   if (state.roomId && !state.connected) { $('video-form-error').textContent = 'Reconnect to your room before changing the video.'; return; }
   if (state.connected) send({ type: 'media', ...media });
   else updateMedia(media.kind === 'demo' ? DEMO : media, { paused: true, time: 0, updatedAt: Date.now(), revision: 0 });
   $('video-dialog').close();
-  if (!state.roomId) toast(isPreview ? 'Video ready. Tap play to try it on this phone.' : 'Video ready. Create a room to watch it together.');
+  if (!state.roomId) toast(isPreview ? 'Video ready. Tap play to try it on this phone.' : media.kind === 'website' ? 'Website ready. Create a room to share this address.' : 'Video ready. Create a room to watch it together.');
 }
 $('choose-demo').addEventListener('click', () => selectVideo(DEMO));
+$('media-kind').addEventListener('change', () => {
+  const website = $('media-kind').value === 'website';
+  $('video-url-label').textContent = website ? 'Website address' : 'YouTube or direct video link';
+  $('video-url').placeholder = website ? 'https://example.com' : 'https://www.youtube.com/watch?v=…';
+  $('source-help').textContent = website ? 'Only sites that allow embedding can open here. You share the address; scrolling, clicks, and video playback stay separate.' : 'On YouTube, tap Share → Copy link, then paste it here. Direct HTTPS MP4 and WebM links also work. Some videos don’t allow playback in other apps.';
+  $('source-submit').textContent = website ? 'Open website together' : 'Watch this together';
+  $('video-form-error').textContent = '';
+});
 $('video-form').addEventListener('submit', event => {
   event.preventDefault(); $('video-form-error').textContent = '';
   try {
-    const url = new URL($('video-url').value.trim());
-    if (url.protocol !== 'https:' || url.username || url.password || url.href.length > 2048) throw new Error();
-    if (/(^|\.)(youtube\.com|youtu\.be|netflix\.com|vimeo\.com|disneyplus\.com)$/.test(url.hostname)) { $('video-form-error').textContent = 'Use a direct video file link, rather than a streaming service page.'; return; }
-    selectVideo({ url: url.href, title: $('video-name').value.trim() || 'Our movie', kind: 'url' });
-  } catch { $('video-form-error').textContent = 'Add a valid HTTPS link to a video file.'; }
+    selectVideo(normalizeMedia({ url: $('video-url').value.trim(), title: $('video-name').value, kind: $('media-kind').value }));
+  } catch (error) { $('video-form-error').textContent = error.message; }
 });
 
 function clearChat() { $('chat-log').replaceChildren($('chat-empty') || makeChatEmpty()); $('chat-input').value = ''; }
@@ -344,6 +439,13 @@ $('chat-form').addEventListener('submit', event => {
 const emoji = { heart: '❤️', kiss: '😘', sparkle: '✨', clap: '👏' };
 function floatReaction(reaction) {
   if (!emoji[reaction]) return;
+  if (['youtube', 'website'].includes(state.media.kind)) {
+    clearTimeout(reactionTimer);
+    $('embed-reaction').textContent = `${emoji[reaction]} A little love, shared.`;
+    $('embed-reaction').hidden = false;
+    reactionTimer = setTimeout(() => { $('embed-reaction').hidden = true; }, 2900);
+    return;
+  }
   const particle = document.createElement('span'); particle.className = 'floating-heart'; particle.textContent = emoji[reaction]; particle.style.left = `${24 + Math.random() * 62}%`;
   $('floating-reactions').append(particle);
   setTimeout(() => particle.remove(), 2900);

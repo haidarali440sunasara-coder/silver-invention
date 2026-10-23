@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const read = name => readFile(new URL(`public/${name}`, root));
-const [htmlBytes, cssBytes, scriptBytes, spriteBytes, poster, movie, favicon] = await Promise.all(
-  ['index.html', 'styles.css', 'app.js', 'icons.svg', 'poster.svg', 'media/together.mp4', 'icon-192.png'].map(read)
+const [htmlBytes, cssBytes, scriptBytes, spriteBytes, poster, movie, favicon, mediaBytes, youtubeBytes] = await Promise.all(
+  ['index.html', 'styles.css', 'app.js', 'icons.svg', 'poster.svg', 'media/together.mp4', 'icon-192.png', 'media.js', 'youtube.js'].map(read)
 );
 const dataURL = (type, bytes) => `data:${type};base64,${bytes.toString('base64')}`;
 const icons = Object.fromEntries([...spriteBytes.toString().matchAll(/<symbol id="([^"]+)" viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)]
@@ -14,7 +14,7 @@ const icons = Object.fromEntries([...spriteBytes.toString().matchAll(/<symbol id
 if (!icons.heart || !icons.play) throw new Error('Could not read the icon sprite.');
 
 let html = htmlBytes.toString();
-let script = scriptBytes.toString();
+let script = [mediaBytes.toString().replace(/^export /gm, ''), youtubeBytes.toString().replace(/^export /gm, ''), scriptBytes.toString().replace(/^import .*;\n/gm, '')].join('\n');
 const iconFactory = 'const icon = name => `<svg aria-hidden="true"><use href="/icons.svg#${name}"></use></svg>`;';
 if (!script.includes(iconFactory)) throw new Error('Update the preview bundler for the new icon factory.');
 script = script.replace(iconFactory, () => `const previewIcons = ${JSON.stringify(icons)};\nconst icon = name => previewIcons[name] || '';`);

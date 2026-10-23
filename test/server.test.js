@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createApp } from '../server.js';
+import { normalizeMedia } from '../public/media.js';
 
 async function fixture(t, options = {}) {
   const app = createApp(options);
@@ -43,6 +44,9 @@ test('serves the app, health, manifest, and seekable demo video', async t => {
   const { origin } = await fixture(t);
   const home = await fetch(origin); assert.equal(home.status, 200); assert.match(await home.text(), /Make tonight/);
   assert.match(home.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(home.headers.get('content-security-policy'), /script-src 'self' https:\/\/www.youtube.com https:\/\/s.ytimg.com/);
+  assert.match(home.headers.get('content-security-policy'), /frame-src https:/);
+  assert.equal(home.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
   assert.deepEqual(await (await fetch(`${origin}/api/health`)).json(), { ok: true });
   const manifest = await (await fetch(`${origin}/manifest.webmanifest`)).json(); assert.equal(manifest.short_name, 'Closer');
   const video = await fetch(`${origin}/media/together.mp4`, { headers: { Range: 'bytes=0-31' } });
@@ -114,4 +118,39 @@ test('expired invitations cannot be reused', async t => {
   let time = Date.now(); const { create, connect } = await fixture(t, { now: () => time });
   const code = await create(); time += 6 * 60 * 60 * 1000;
   const client = await connect(code); assert.equal((await client.take('error')).code, 'room-missing');
+});
+
+test('recognizes shared YouTube URLs without trusting arbitrary video IDs or hosts', () => {
+  const id = 'M7lc1UVf-VE';
+  for (const url of [
+    `https://www.youtube.com/watch?v=${id}&list=ignored`, `https://youtu.be/${id}?si=tracking`,
+    `https://m.youtube.com/watch?v=${id}`, `https://www.youtube.com/shorts/${id}`,
+    `https://www.youtube.com/live/${id}`, `https://www.youtube-nocookie.com/embed/${id}`
+  ]) {
+    assert.deepEqual(normalizeMedia({ url, title: ' Our pick ' }), { kind: 'youtube', url: `https://www.youtube.com/watch?v=${id}`, videoId: id, title: 'Our pick' });
+  }
+  for (const url of ['https://youtube.com/', 'https://youtu.be/invalid', 'https://youtube.com/watch?v=<script>', 'javascript:alert(1)', 'http://youtu.be/M7lc1UVf-VE', 'https://user:password@youtu.be/M7lc1UVf-VE', 'https://youtube.com.evil.example/watch?v=M7lc1UVf-VE']) {
+    assert.throws(() => normalizeMedia({ kind: 'youtube', url }));
+  }
+});
+
+test('shares YouTube and website selections with late joiners and rejects invalid sources', async t => {
+  const { create, connect } = await fixture(t); const code = await create();
+  const first = await connect(code); await first.take('joined');
+  first.send({ type: 'media', kind: 'youtube', url: 'https://youtu.be/M7lc1UVf-VE', videoId: 'untrusted', title: 'Together' });
+  assert.equal((await first.take('media')).media.videoId, 'M7lc1UVf-VE');
+  first.send({ type: 'playback', time: 42, paused: true }); await first.take('playback');
+  const second = await connect(code); const joined = await second.take('joined');
+  assert.equal(joined.room.media.kind, 'youtube'); assert.equal(joined.room.playback.time, 42);
+  first.send({ type: 'media', kind: 'website', url: 'https://example.com/page?q=two' });
+  const website = await second.take('media');
+  assert.equal(website.media.kind, 'website'); assert.equal(website.media.url, 'https://example.com/page?q=two');
+  assert.equal(website.playback.paused, true);
+  for (const [kind, url] of [['website', 'data:text/html,unsafe'], ['website', 'https://me:secret@example.com'], ['youtube', 'https://example.com/embed/id'], ['other', 'https://example.com']]) {
+    first.send({ type: 'media', kind, url }); assert.equal((await first.take('error')).code, 'invalid-media');
+  }
+  first.send({ type: 'playback', time: 100, paused: false });
+  first.send({ type: 'ping', sentAt: 123 }); await first.take('pong');
+  assert.equal(second.inbox.filter(message => message.type === 'playback').length, 0);
+  first.send({ type: 'media', kind: 'demo' }); assert.equal((await second.take('media')).media.kind, 'demo');
 });
